@@ -495,7 +495,7 @@ body {
 .action-inner .button.primary,.editor-dialog .button.primary { background:var(--chapter-ink); }
 .action-inner .button.primary:hover,.editor-dialog .button.primary:hover { filter:brightness(1.14); }
 .output-sheet { max-width:55rem; padding-bottom:.58rem; }
-.prompt-stack { display:grid; gap:.5rem; }
+.prompt-stack { display:grid; gap:.5rem; max-height:clamp(15rem,calc(100dvh - 23rem),35rem); overflow-y:auto; overscroll-behavior:contain; scrollbar-gutter:stable; padding:.5rem; }
 .prompt-piece { position:relative; min-width:0; animation:piece-in .37s both; }
 .prompt-piece:nth-child(2) { animation-delay:.035s; }
 .prompt-piece:nth-child(3) { animation-delay:.07s; }
@@ -835,11 +835,11 @@ button.pizza-slice:focus-visible { position:relative; z-index:2; outline-offset:
   .pick-icon { width:2rem; height:2rem; }
   .choice-result { min-height:2.55rem; padding:.42rem .6rem; }
   .output-sheet > .meta { margin-bottom:.55rem; }
-  .prompt-stack { grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:.5rem; }
+  .prompt-stack { grid-template-columns:minmax(0,1fr); gap:.5rem; }
   .prompt-piece.chapter-base { grid-column:1/-1; }
   .prompt-piece + .prompt-piece::before { display:none; }
   .piece-button { height:100%; padding:.5rem .7rem .6rem; gap:.28rem; }
-  .piece-text { display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:3; line-clamp:3; overflow:hidden; font-size:.85rem; line-height:1.42; }
+  .piece-text { font-size:.85rem; line-height:1.42; }
   .chapter-base .piece-text { font-size:.85rem; }
   .create-bar { margin:.75rem 0 0; gap:.28rem; }
   .big-create { min-height:3rem; padding:.6rem 1rem; font-size:1rem; }
@@ -870,8 +870,6 @@ button.pizza-slice:focus-visible { position:relative; z-index:2; outline-offset:
   .example-strip { margin-top:.6rem; }
   .pick-card { min-height:3.8rem; }
   .choice-result { min-height:2.35rem; }
-  .piece-text { -webkit-line-clamp:2; line-clamp:2; }
-  .chapter-base .piece-text { -webkit-line-clamp:3; line-clamp:3; }
   .create-bar { margin-top:.55rem; }
 }
 
@@ -2138,7 +2136,7 @@ function generatedBlock(key){
   return selections.length===1?selections[0]:[combine,...selections.map(text=>"• "+text)].filter(Boolean).join("\n");
 }
 function promptBlocks(){
-  return ["base","topic","kind","look","help"].map(key=>({key,text:key!=="base"&&state.edits[key]||generatedBlock(key)}));
+  return ["base","topic","kind","look","help"].map(key=>({key,text:state.edits[key]||generatedBlock(key)}));
 }
 function buildPrompt(){
   return promptBlocks().map(o=>o.key==="base"?o.text:blockLabels[o.key]+"\n"+o.text).join("\n\n");
@@ -2146,7 +2144,7 @@ function buildPrompt(){
 function readableBlock({key,text}){
   return `<article class="prompt-piece chapter-${key}">
       <button type="button" class="piece-button" data-edit-block="${key}">
-       <span class="piece-head"><span class="piece-label">${mi(blockIcons[key])} ${blockLabels[key]}</span><span class="piece-status">${key==="base"?"Automatisch":state.edits[key]?"Eigener Text":state[key]?.length===0?"Standard":"Aus deiner Auswahl"} ${mi(key==="base"?"chevron_right":"edit")}</span></span>
+       <span class="piece-head"><span class="piece-label">${mi(blockIcons[key])} ${blockLabels[key]}</span><span class="piece-status">${state.edits[key]?"Eigener Text":key==="base"?"Automatisch":state[key]?.length===0?"Standard":"Aus deiner Auswahl"} ${mi("edit")}</span></span>
        <span class="piece-text">${esc(text)}</span>
       </button></article>`;
 }
@@ -2154,7 +2152,7 @@ function output(){
   return `<section class="screen output-sheet chapter-prompt">
     ${chapterHeader(5,"Dein Prompt steht.","Kopiere den Auftrag in deinen KI-Chat. Die Antwort öffnest du anschließend hier im Betrachter.")}
     <p class="meta">Tippe auf einen Absatz, um ihn zu bearbeiten.</p>
-    <div class="prompt-stack" id="prompt-stack" aria-label="Fertiger Prompt für ${appTypes[state.appType].label}">${promptBlocks().map(readableBlock).join("")}</div>
+    <div class="prompt-stack" id="prompt-stack" role="region" tabindex="0" aria-label="Fertiger Prompt für ${appTypes[state.appType].label}">${promptBlocks().map(readableBlock).join("")}</div>
     <div class="create-bar">
       <button class="button primary big-create" id="create-app" type="button">${delivery?.step>0 && delivery.prompt===buildPrompt()?"Mit meiner App weiterarbeiten":"App mit KI erstellen"} ${mi("arrow_forward")}</button>
       <div class="prompt-tools">
@@ -2169,21 +2167,21 @@ function openBlock(key){
   if(!Object.hasOwn(blockLabels,key))return;
   editKey=key;
   const root=$("#block-dialog");
-  const fixed=key==="base";
+  const base=key==="base";
   const legacy=key==="legacy";
   const text=legacy?state.legacy:state.edits[key]||generatedBlock(key);
   root.className="dialog editor-dialog chapter-"+key;
-  root.innerHTML=`${dialogHead("block-title",blockLabels[key],fixed?"Automatischer Grundauftrag":legacy?"Vorheriger Entwurf":"Prompt-Absatz bearbeiten")}
+  root.innerHTML=`${dialogHead("block-title",blockLabels[key],base?"Grundauftrag bearbeiten":legacy?"Vorheriger Entwurf":"Prompt-Absatz bearbeiten")}
     <div class="dialog-main"><div class="facet">
-      <label for="edit-block-text">${fixed?"Kommt immer mit":"Wortlaut für die KI"}</label>
-      <textarea class="prompt-text" id="edit-block-text" rows="${fixed?11:8}" ${fixed||legacy?"readonly":""}>${esc(text)}</textarea>
+      <label for="edit-block-text">Wortlaut für die KI</label>
+      <textarea class="prompt-text" id="edit-block-text" rows="${base?11:8}" ${legacy?"readonly":""}>${esc(text)}</textarea>
       <p class="error" id="block-error" role="alert" hidden>Der Absatz braucht einen Inhalt.</p>
-    </div>${!fixed&&!legacy?'<button class="button ghost small" id="edit-preferences" type="button">Eingaben für dieses Kapitel ändern</button>':""}</div>
-    <div class="dialog-actions">${fixed||legacy?"<span></span>":'<button class="button ghost small" id="reset-block" type="button">Aus Eingaben übernehmen</button>'}
-      ${fixed||legacy?'<button class="button primary" data-dismiss type="button">Fertig</button>':'<button class="button primary" id="apply-block" type="button">Übernehmen '+mi("check")+'</button>'}
+    </div>${!base&&!legacy?'<button class="button ghost small" id="edit-preferences" type="button">Eingaben für dieses Kapitel ändern</button>':""}</div>
+    <div class="dialog-actions">${legacy?"<span></span>":`<button class="button ghost small" id="reset-block" type="button">${base?"Grundauftrag wiederherstellen":"Aus Eingaben übernehmen"}</button>`}
+      ${legacy?'<button class="button primary" data-dismiss type="button">Fertig</button>':'<button class="button primary" id="apply-block" type="button">Übernehmen '+mi("check")+'</button>'}
     </div>`;
   root.showModal();
-  focusElement(fixed||legacy?"#block-title":"#edit-block-text");
+  focusElement(legacy?"#block-title":"#edit-block-text");
 }
 function applyBlock(reset=false){
   const value=$("#edit-block-text").value.trim();
